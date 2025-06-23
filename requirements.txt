@@ -7,10 +7,10 @@ chromadb==0.4.22
 
 # Embedding
 sentence-transformers==2.2.2
-huggingface_hub==0.20.3  # Pinned — critical fix
+huggingface_hub>=0.23  # Pinned — critical fix
 
 # Dataset
-datasets==3.6.0  # Streamlit cloud latest working version
+datasets>=2.19.1  # Streamlit cloud latest working version
 
 # Transformers (LLM model)
 transformers==4.40.1
