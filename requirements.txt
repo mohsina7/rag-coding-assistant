@@ -1,13 +1,9 @@
 # Core
-python-dotenv
 streamlit>=1.32
 langchain>=0.1.14
 langchain_community>=0.3.5
 langchain_text_splitters>=0.0.2
 chromadb==0.4.22
-
-# Embedding
-sentence-transformers==2.2.2
 
 # Dataset
 datasets>=2.19.1
@@ -16,5 +12,5 @@ datasets>=2.19.1
 transformers==4.40.1
 huggingface_hub>=0.23
 
-# Pin protobuf (compat)
+# Pin protobuf
 protobuf==3.20.3
