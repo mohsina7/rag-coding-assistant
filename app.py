@@ -16,11 +16,11 @@ embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:1000]")
 texts = [item['content'] for item in dataset]
 
-# Split into chunks
+# Split documents
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 split_docs = splitter.create_documents(texts)
 
-# Insert to Chroma in batches (avoid crash)
+# Insert to Chroma in batches
 db = Chroma(embedding_function=embedding_model)
 batch_size = 500
 
@@ -32,7 +32,7 @@ for i in range(0, len(split_docs), batch_size):
 # Setup retriever
 retriever = db.as_retriever()
 
-# Load LLM pipeline
+# Load model pipeline
 generator = pipeline(
     "text2text-generation",
     model="google/flan-t5-small",
