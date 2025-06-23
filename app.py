@@ -10,7 +10,11 @@ import os
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # Load embedding model
-embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+embedding_model = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    model_kwargs={'device': 'cpu'}
+)
+
 
 # Load dataset
 dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:1000]")
