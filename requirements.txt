@@ -1,19 +1,19 @@
 # Core
 python-dotenv
-streamlit>=1.32
+streamlit==1.46.0
 langchain==0.1.14
-langchain_text_splitters>=0.0.2
+langchain_text_splitters==0.0.2
 chromadb==0.4.22
 
 # Embedding
 sentence-transformers==2.2.2
+huggingface_hub==0.20.3  # Pinned — critical fix
 
 # Dataset
-datasets>=2.19.1
+datasets==3.6.0  # Streamlit cloud latest working version
 
-# Transformers (model)
+# Transformers (LLM model)
 transformers==4.40.1
-huggingface_hub>=0.23
 
 # Pin protobuf (compat)
 protobuf==3.20.3

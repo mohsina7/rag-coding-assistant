@@ -21,15 +21,7 @@ splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 split_docs = splitter.create_documents(texts)
 
 # Insert to Chroma in batches
-db = Chroma(embedding_function=embedding_model)
-batch_size = 500
-
-for i in range(0, len(split_docs), batch_size):
-    end_i = min(i + batch_size, len(split_docs))
-    print(f"Inserting batch {i} to {end_i} ...")
-    db.add_documents(split_docs[i:end_i])
-
-# Setup retriever
+db = Chroma.from_documents(split_docs, embedding_model)
 retriever = db.as_retriever()
 
 # Load model pipeline
