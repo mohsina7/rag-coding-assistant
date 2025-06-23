@@ -1,5 +1,5 @@
 import streamlit as st
-from transformers.pipelines import pipeline
+from transformers import pipeline
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -10,12 +10,7 @@ import os
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # Load embedding model
-embedding_model = HuggingFaceBgeEmbeddings(
-    model_name="BAAI/bge-small-en-v1.5",
-    model_kwargs={"device": "cpu"},
-    encode_kwargs={"normalize_embeddings": True}
-)
-
+embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 # Load dataset
 dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:1000]")
