@@ -1,5 +1,5 @@
 import streamlit as st
-from transformers import pipeline
+from transformers.pipelines import pipeline
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
