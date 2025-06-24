@@ -1,11 +1,10 @@
 import streamlit as st
-from transformers import pipeline
-from langchain_community.vectorstores import Chroma
+from transformers import pipeline as hf_pipeline
+from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from datasets import load_dataset
 import os
-os.environ["CHROMA_DB_IMPL"] = "duckdb+parquet"
 
 # Load HF token from env
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
@@ -23,20 +22,14 @@ texts = [item['content'] for item in dataset]
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 split_docs = splitter.create_documents(texts)
 
-# Insert to Chroma in batches
-db = Chroma(embedding_function=embedding_model)
-batch_size = 500
-
-for i in range(0, len(split_docs), batch_size):
-    end_i = min(i + batch_size, len(split_docs))
-    print(f"Inserting batch {i} to {end_i} ...")
-    db.add_documents(split_docs[i:end_i])
+# Build FAISS vectorstore
+db = FAISS.from_documents(split_docs, embedding_model)
 
 # Setup retriever
 retriever = db.as_retriever()
 
 # Load model pipeline
-generator = pipeline(
+generator = hf_pipeline(
     "text2text-generation",
     model="google/flan-t5-small",
     token=HF_TOKEN
