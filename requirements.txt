@@ -1,20 +1,10 @@
 python-dotenv
 streamlit==1.46.0
-
-# Langchain + Chroma
-langchain==0.1.14
-langchain-community==0.0.38
-langchain-core==0.1.53
-langchain-text-splitters==0.0.2
+langchain==0.2.1
+langchain_community==0.2.1
+langchain_text_splitters==0.2.1
 chromadb==0.4.22
-
-# Embeddings
-sentence-transformers==2.2.2
-# DO NOT pin huggingface_hub or transformers, let pip resolve
-
-# Dataset + Transformers
-datasets>=2.19.1
-transformers==4.40.1
-
-# Other
+sentence-transformers==2.7.0
+huggingface_hub==0.23.0
+transformers==4.37.2
 protobuf==3.20.3

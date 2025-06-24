@@ -6,55 +6,59 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from datasets import load_dataset
 import os
 
-# Load HF token
+# Load HF token from env
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # BGE Embedding
-
 embedding_model = SentenceTransformerEmbeddings(
     model_name="BAAI/bge-small-en-v1.5"
 )
 
-
 # Load dataset
 dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:1000]")
-texts = [item["content"] for item in dataset]
+texts = [item['content'] for item in dataset]
 
-# Chunk texts
+# Split documents
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 split_docs = splitter.create_documents(texts)
 
-# Create Chroma vector store
+# Insert to Chroma in batches
 db = Chroma(embedding_function=embedding_model)
-for i in range(0, len(split_docs), 500):
-    db.add_documents(split_docs[i:i+500])
+batch_size = 500
 
-# Retriever
+for i in range(0, len(split_docs), batch_size):
+    end_i = min(i + batch_size, len(split_docs))
+    print(f"Inserting batch {i} to {end_i} ...")
+    db.add_documents(split_docs[i:end_i])
+
+# Setup retriever
 retriever = db.as_retriever()
 
-# Generator model
+# Load model pipeline
 generator = pipeline(
     "text2text-generation",
     model="google/flan-t5-small",
     token=HF_TOKEN
 )
 
-# RAG QA
+# QA function
 def rag_qa(query):
-    docs = retriever.get_relevant_documents(query)
-    context = "\n\n".join([doc.page_content for doc in docs])
+    context_docs = retriever.get_relevant_documents(query)
+    context = "\n\n".join([doc.page_content for doc in context_docs])
     prompt = f"Answer this question based on the following context:\n{context}\n\nQuestion: {query}"
     result = generator(prompt, max_length=512)
-    return result[0]["generated_text"]
+    return result[0]['generated_text']
 
-# UI
+# Streamlit UI
 st.title("💬 RAG-based AI Coding Assistant")
-query = st.text_input("Ask your coding question:")
+st.write("Ask me a programming question!")
+
+query = st.text_input("Enter your question:")
 
 if st.button("Get Answer"):
     if query.strip() == "":
         st.warning("Please enter a question.")
     else:
-        with st.spinner("Thinking..."):
+        with st.spinner("Generating answer..."):
             answer = rag_qa(query)
             st.success(answer)
