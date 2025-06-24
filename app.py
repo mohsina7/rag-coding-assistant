@@ -15,11 +15,11 @@ embedding_model = SentenceTransformerEmbeddings(
 )
 
 # Load dataset
-dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:1000]")
+dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:100]")
 texts = [item['content'] for item in dataset]
 
 # Split documents
-splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
 split_docs = splitter.create_documents(texts)
 
 # Build FAISS vectorstore
