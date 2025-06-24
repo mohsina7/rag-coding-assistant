@@ -5,6 +5,7 @@ from langchain_community.embeddings import SentenceTransformerEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from datasets import load_dataset
 import os
+os.environ["CHROMA_DB_IMPL"] = "duckdb+parquet"
 
 # Load HF token from env
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
