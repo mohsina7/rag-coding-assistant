@@ -8,3 +8,4 @@ sentence-transformers==2.7.0
 huggingface_hub==0.23.0
 transformers==4.37.2
 protobuf==3.20.3
+datasets==2.19.0
