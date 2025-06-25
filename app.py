@@ -2,43 +2,46 @@ import streamlit as st
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import os
 import requests
 
-# Load HF token from env
+# Load HF token
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
-# Load embedding function for LangChain-compatible interface
+# Embedding model for LangChain
 embedding_model = HuggingFaceEmbeddings(
     model_name="BAAI/bge-small-en-v1.5",
     model_kwargs={"device": "cpu"},
     encode_kwargs={"normalize_embeddings": True}
 )
-# Load dataset (small)
+
+# Load dataset
 dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:100]")
 texts = [item['content'] for item in dataset]
 
-# Split documents
+# Split text
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 split_docs = splitter.create_documents(texts)
 
-# Create Chroma vectorstore
-db = Chroma.from_documents(split_docs, embedding_function=embedding_model)
+# Vector store with persistent dir
+db = Chroma.from_documents(
+    documents=split_docs,
+    embedding=embedding_model,
+    persist_directory=".chroma_store"
+)
 
-
-# Setup retriever
+# Retriever
 retriever = db.as_retriever()
 
-# Call HuggingFace Inference API
+# HF inference API
 def call_hf_api(prompt):
     API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {"inputs": prompt, "parameters": {"max_length": 512}}
 
     response = requests.post(API_URL, headers=headers, json=payload)
-    response.raise_for_status()  # Raise error on fail
+    response.raise_for_status()
     return response.json()[0]["generated_text"]
 
 # RAG QA
@@ -48,7 +51,7 @@ def rag_qa(query):
     prompt = f"Answer the following question based on context:\n\n{context}\n\nQuestion: {query}"
     return call_hf_api(prompt)
 
-# Streamlit UI
+# UI
 st.title("💬 RAG-based AI Coding Assistant")
 st.write("Ask me a programming question!")
 
