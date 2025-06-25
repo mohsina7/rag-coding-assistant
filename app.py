@@ -1,70 +1,59 @@
 import streamlit as st
-from langchain_community.vectorstores import Chroma
+from datasets import load_dataset
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from datasets import load_dataset
-import os
-import requests
-import tempfile  # for ephemeral storage workaround
+from langchain_core.documents import Document
+from langchain_community.vectorstores import Chroma
+from transformers import pipeline
 
-# Load HF token from env
-HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+# --- Load and preprocess dataset ---
+@st.cache_resource
+def load_documents():
+    dataset = load_dataset("lvwerra/codeparrot-clean-train", split="train[:1000]")
+    texts = [item['content'] for item in dataset]
+    documents = [Document(page_content=t) for t in texts]
 
-# Load embedding model
-embedding_model = HuggingFaceEmbeddings(
-    model_name="BAAI/bge-small-en-v1.5",
-    model_kwargs={"device": "cpu"},
-    encode_kwargs={"normalize_embeddings": True}
-)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    return splitter.split_documents(documents)
 
-# Load a small subset of dataset
-dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:100]")
-texts = [item["content"] for item in dataset]
+# --- Build ChromaDB ---
+@st.cache_resource
+def build_retriever(split_docs):
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    db = Chroma(embedding_function=embeddings)
+    
+    # Insert documents in one go if not already added
+    if len(db.get()["ids"]) == 0:
+        db.add_documents(split_docs)
+    return db.as_retriever()
 
-# Split into documents
-splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-split_docs = splitter.create_documents(texts)
+# --- Load lightweight model ---
+@st.cache_resource
+def load_generator():
+    return pipeline("text2text-generation", model="google/flan-t5-small")
 
-# Create temporary directory for Chroma (non-persistent)
-with tempfile.TemporaryDirectory() as tmpdir:
-    db = Chroma.from_documents(
-        documents=split_docs,
-        embedding=embedding_model,
-        persist_directory=tmpdir
-    )
+# --- Core QA logic ---
+def rag_qa(query, retriever, generator):
+    context_docs = retriever.get_relevant_documents(query)
+    context = "\n\n".join([doc.page_content for doc in context_docs[:3]])  # Limit context
+    prompt = f"Answer this question based on the following context:\n{context}\n\nQuestion: {query}"
+    result = generator(prompt, max_length=512, temperature=0.1)
+    return result[0]['generated_text'], context
 
-    # Setup retriever
-    retriever = db.as_retriever()
+# --- UI ---
+st.title("💬 RAG Coding Assistant")
+st.markdown("Ask programming questions. Answers are grounded in real code examples.")
 
-    # HF Inference API
-    def call_hf_api(prompt):
-        API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
-        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-        payload = {"inputs": prompt, "parameters": {"max_length": 512}}
-        response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()[0]["generated_text"]
+query = st.text_input("Enter your coding question:")
+if query:
+    with st.spinner("Generating answer..."):
+        docs = load_documents()
+        retriever = build_retriever(docs)
+        generator = load_generator()
+        answer, context = rag_qa(query, retriever, generator)
 
-    # RAG QA function
-    def rag_qa(query):
-        context_docs = retriever.get_relevant_documents(query)
-        context = "\n\n".join([doc.page_content for doc in context_docs])
-        prompt = f"Answer the following question based on context:\n\n{context}\n\nQuestion: {query}"
-        return call_hf_api(prompt)
+    st.subheader("Answer:")
+    st.write(answer)
 
-    # Streamlit UI
-    st.title("💬 RAG-based AI Coding Assistant")
-    st.write("Ask me a programming question!")
-
-    query = st.text_input("Enter your question:")
-
-    if st.button("Get Answer"):
-        if query.strip() == "":
-            st.warning("Please enter a question.")
-        else:
-            with st.spinner("Generating answer..."):
-                try:
-                    answer = rag_qa(query)
-                    st.success(answer)
-                except Exception as e:
-                    st.error(f"Error: {e}")
+    with st.expander("🔍 Show Retrieved Context"):
+        st.code(context)
