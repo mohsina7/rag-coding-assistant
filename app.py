@@ -11,8 +11,11 @@ import requests
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # Load embedding function for LangChain-compatible interface
-embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
-
+embedding_model = HuggingFaceEmbeddings(
+    model_name="BAAI/bge-small-en-v1.5",
+    model_kwargs={"device": "cpu"},
+    encode_kwargs={"normalize_embeddings": True}
+)
 # Load dataset (small)
 dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:100]")
 texts = [item['content'] for item in dataset]
