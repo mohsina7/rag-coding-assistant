@@ -1,7 +1,7 @@
 import streamlit as st
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import SentenceTransformerEmbeddings
+from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import os
 import requests
@@ -10,7 +10,7 @@ import requests
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # Load embedding model (this runs on Streamlit Cloud, small model)
-embedding_model = SentenceTransformerEmbeddings(model_name="BAAI/bge-small-en-v1.5")
+embedding_model = SentenceTransformer("BAAI/bge-small-en-v1.5")
 
 # Load dataset (small)
 dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:100]")
