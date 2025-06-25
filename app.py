@@ -1,6 +1,7 @@
 import streamlit as st
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import os
@@ -9,8 +10,8 @@ import requests
 # Load HF token from env
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
-# Load embedding model (this runs on Streamlit Cloud, small model)
-embedding_model = SentenceTransformer("BAAI/bge-small-en-v1.5")
+# Load embedding function for LangChain-compatible interface
+embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
 
 # Load dataset (small)
 dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:100]")
@@ -20,9 +21,8 @@ texts = [item['content'] for item in dataset]
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 split_docs = splitter.create_documents(texts)
 
-# Insert to Chroma
-db = Chroma(embedding_function=embedding_model)
-db.add_documents(split_docs)
+# Create Chroma vectorstore
+db = Chroma.from_documents(split_docs, embedding_function=embedding_function)
 
 # Setup retriever
 retriever = db.as_retriever()
@@ -34,11 +34,10 @@ def call_hf_api(prompt):
     payload = {"inputs": prompt, "parameters": {"max_length": 512}}
 
     response = requests.post(API_URL, headers=headers, json=payload)
-    response.raise_for_status()  # Throw error if failed
-    generated_text = response.json()[0]["generated_text"]
-    return generated_text
+    response.raise_for_status()  # Raise error on fail
+    return response.json()[0]["generated_text"]
 
-# RAG QA function
+# RAG QA
 def rag_qa(query):
     context_docs = retriever.get_relevant_documents(query)
     context = "\n\n".join([doc.page_content for doc in context_docs])
