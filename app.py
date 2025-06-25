@@ -25,7 +25,8 @@ splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 split_docs = splitter.create_documents(texts)
 
 # Create Chroma vectorstore
-db = Chroma.from_documents(split_docs, embedding_function=embedding_function)
+db = Chroma.from_documents(split_docs, embedding_function=embedding_model)
+
 
 # Setup retriever
 retriever = db.as_retriever()
