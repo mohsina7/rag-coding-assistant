@@ -39,7 +39,9 @@ def get_embedding(text, tokenizer, model):
     return embeddings.cpu().numpy()
 
 @st.cache_resource(show_spinner=False)
-def build_faiss_index(snippets, tokenizer, model):
+def build_faiss_index(snippets):
+    # We load the embedding model internally here to avoid passing unhashable params
+    tokenizer, model = load_embedding_model()
     embeddings = np.vstack([get_embedding(s, tokenizer, model) for s in snippets])
     index = faiss.IndexFlatL2(EMBEDDING_DIM)
     index.add(embeddings)
@@ -71,8 +73,10 @@ def main():
         """
     )
 
+    # Load tokenizer and model once (outside cached functions)
     tokenizer, model = load_embedding_model()
-    index = build_faiss_index(CODE_SNIPPETS, tokenizer, model)
+    # Build FAISS index without passing model/tokenizer here
+    index = build_faiss_index(CODE_SNIPPETS)
 
     user_input = st.text_area("Enter Python code snippet or question:", height=150)
 
