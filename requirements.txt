@@ -4,6 +4,7 @@ langchain_community==0.0.38
 langchain_text_splitters==0.0.2
 chromadb==0.4.22
 sentence-transformers==2.2.2
+huggingface-hub==0.19.4
 datasets==3.6.0
 requests
 python-dotenv
