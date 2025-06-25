@@ -1,111 +1,68 @@
 import streamlit as st
-import torch
-import faiss
-import numpy as np
-from transformers import AutoTokenizer, AutoModel
+from langchain_community.vectorstores import Chroma
+import chromadb  # To disable telemetry
+chromadb.config.settings.TELEMETRY_ENABLED = False
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from datasets import load_dataset
+import os
 import requests
 
-# Use Streamlit secrets for HF API token securely
-HF_API_TOKEN = st.secrets.get("HF_API_TOKEN", None)
-if HF_API_TOKEN is None:
-    st.error("Error: HF_API_TOKEN not set in Streamlit secrets. Please add it to deploy.")
-    st.stop()
+# Load HF token from env
+HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
-HF_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
+# Load embedding function
+embedding_model = HuggingFaceEmbeddings(
+    model_name="BAAI/bge-small-en-v1.5",
+    model_kwargs={"device": "cpu"},
+    encode_kwargs={"normalize_embeddings": True}
+)
 
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
+# Load dataset (small portion for demo)
+dataset = load_dataset("codeparrot/codeparrot-clean", split="train[:100]")
+texts = [item['content'] for item in dataset]
 
-CODE_SNIPPETS = [
-    "def factorial(n):\n    if n == 0:\n        return 1\n    else:\n        return n * factorial(n-1)",
-    "def fibonacci(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a",
-    "def is_prime(num):\n    if num <= 1:\n        return False\n    for i in range(2, int(num ** 0.5) + 1):\n        if num % i == 0:\n            return False\n    return True",
-    "def reverse_string(s):\n    return s[::-1]",
-    "def sum_list(lst):\n    total = 0\n    for num in lst:\n        total += num\n    return total",
-]
+# Split documents
+splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+split_docs = splitter.create_documents(texts)
 
-@st.cache_resource(show_spinner=False)
-def load_embedding_model():
-    tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_NAME)
-    model = AutoModel.from_pretrained(EMBEDDING_MODEL_NAME)
-    model.eval()
-    return tokenizer, model
+# Create vectorstore (Chroma) with LangChain interface
+db = Chroma.from_documents(split_docs, embedding_function=embedding_model)
 
-def get_embedding(text, tokenizer, model):
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
-    with torch.no_grad():
-        outputs = model(**inputs)
-    embeddings = outputs.last_hidden_state.mean(dim=1).squeeze()
-    return embeddings.cpu().numpy()
+# Setup retriever
+retriever = db.as_retriever()
 
-@st.cache_resource(show_spinner=False)
-def build_faiss_index(snippets):
-    # We load the embedding model internally here to avoid passing unhashable params
-    tokenizer, model = load_embedding_model()
-    embeddings = np.vstack([get_embedding(s, tokenizer, model) for s in snippets])
-    index = faiss.IndexFlatL2(EMBEDDING_DIM)
-    index.add(embeddings)
-    return index
+# Call HuggingFace Inference API
+def call_hf_api(prompt):
+    API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    payload = {"inputs": prompt, "parameters": {"max_length": 512}}
 
-def retrieve_relevant_snippets(query, tokenizer, model, index, snippets, top_k=3):
-    query_emb = get_embedding(query, tokenizer, model).reshape(1, -1)
-    distances, indices = index.search(query_emb, top_k)
-    return [snippets[i] for i in indices[0]]
+    response = requests.post(API_URL, headers=headers, json=payload)
+    response.raise_for_status()
+    return response.json()[0]["generated_text"]
 
-def query_flan_t5(prompt, api_token=HF_API_TOKEN):
-    headers = {"Authorization": f"Bearer {api_token}"}
-    payload = {"inputs": prompt, "parameters": {"max_new_tokens":150, "return_full_text": False}}
-    response = requests.post(HF_API_URL, headers=headers, json=payload)
-    if response.status_code == 200:
-        result = response.json()
-        return result[0]['generated_text']
+# RAG QA logic
+def rag_qa(query):
+    context_docs = retriever.get_relevant_documents(query)
+    context = "\n\n".join([doc.page_content for doc in context_docs])
+    prompt = f"Answer the following question based on context:\n\n{context}\n\nQuestion: {query}"
+    return call_hf_api(prompt)
+
+# Streamlit UI
+st.title("💬 RAG-based AI Coding Assistant")
+st.write("Ask me a programming question!")
+
+query = st.text_input("Enter your question:")
+
+if st.button("Get Answer"):
+    if query.strip() == "":
+        st.warning("Please enter a question.")
     else:
-        st.error(f"Hugging Face API Error {response.status_code}: {response.text}")
-        return None
-
-def main():
-    st.title("🚀 RAG Code Explainer - Python Code Assistance")
-
-    st.markdown(
-        """
-        Paste your Python code snippet or question about Python code.
-        The system will retrieve relevant examples and generate explanations or suggestions.
-        """
-    )
-
-    # Load tokenizer and model once (outside cached functions)
-    tokenizer, model = load_embedding_model()
-    # Build FAISS index without passing model/tokenizer here
-    index = build_faiss_index(CODE_SNIPPETS)
-
-    user_input = st.text_area("Enter Python code snippet or question:", height=150)
-
-    if st.button("Explain / Suggest"):
-        if not user_input.strip():
-            st.warning("Please provide some input.")
-            return
-
-        with st.spinner("Retrieving relevant snippets..."):
-            relevant_snippets = retrieve_relevant_snippets(user_input, tokenizer, model, index, CODE_SNIPPETS)
-
-        st.subheader("🔍 Retrieved Code Snippets")
-        for i, snippet in enumerate(relevant_snippets, 1):
-            st.code(snippet, language="python")
-
-        context = "\n\n".join([f"Example {i}:\n{snippet}" for i, snippet in enumerate(relevant_snippets, 1)])
-
-        prompt = (
-            f"Here are some Python code examples:\n{context}\n\n"
-            f"User input:\n{user_input}\n\n"
-            "Based on the above examples, provide a clear explanation, suggestions, or fixes."
-        )
-
-        with st.spinner("Generating response from Hugging Face FLAN-T5..."):
-            answer = query_flan_t5(prompt)
-
-        if answer:
-            st.subheader("💡 Explanation / Suggestions")
-            st.write(answer)
-
-if __name__ == "__main__":
-    main()
+        with st.spinner("Generating answer..."):
+            try:
+                answer = rag_qa(query)
+                st.success(answer)
+            except Exception as e:
+                st.error(f"Error: {e}")
